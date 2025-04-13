@@ -23,19 +23,16 @@ namespace Cinema.Console
 
             string filePath = "movies.json";
 
-            // Зберегти фільми у файл
             movieService.Save(filePath);
             System.Console.WriteLine($"\nДані збережено у файл: {filePath}");
 
-            // Очистимо сервіс і перевіримо, що він порожній
             System.Console.WriteLine("\nПісля очищення:");
             var emptyService = new CrudService<Movie>();
             foreach (var m in emptyService.ReadAll())
             {
-                System.Console.WriteLine(m); // нічого не буде
+                System.Console.WriteLine(m); 
             }
 
-            // Завантажимо дані з файлу назад
             emptyService.Load(filePath);
             System.Console.WriteLine("\nПісля завантаження з файлу:");
             foreach (var m in emptyService.ReadAll())
