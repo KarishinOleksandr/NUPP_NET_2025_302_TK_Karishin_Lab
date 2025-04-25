@@ -3,7 +3,7 @@ using Lab2.Services;
 using Xunit;
 using System.Threading.Tasks;
 
-namespace Lab2App.Tests
+namespace Lab2.Tests
 {
     public class CrudServiceTests
     {
