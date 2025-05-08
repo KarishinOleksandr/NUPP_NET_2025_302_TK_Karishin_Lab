@@ -5,7 +5,6 @@ using System.Text;
 using System.Threading.Tasks;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
-
 namespace Cinema.Nosql.Models
 {
     public class MongoCustomer
@@ -14,6 +13,7 @@ namespace Cinema.Nosql.Models
         [BsonRepresentation(BsonType.ObjectId)]
         public string Id { get; set; }
 
+        [BsonRepresentation(BsonType.String)]   
         public Guid OriginalId { get; set; }
 
         [BsonElement("name")]
@@ -28,11 +28,9 @@ namespace Cinema.Nosql.Models
         [BsonElement("tickets")]
         public List<string> TicketIds { get; set; } = new List<string>();
 
-        [BsonElement("createdAt")]
         [BsonDateTimeOptions(Kind = DateTimeKind.Local)]
         public DateTime CreatedAt { get; set; } = DateTime.Now;
 
-        [BsonElement("updatedAt")]
         [BsonDateTimeOptions(Kind = DateTimeKind.Local)]
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
     }

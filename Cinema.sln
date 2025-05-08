@@ -9,7 +9,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cinema.Console", "Cinema.Co
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cinema.Infrastructure", "Cinema.Infrastructure\Cinema.Infrastructure.csproj", "{0F14500F-B42D-4782-92F0-5CBD08A1D909}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cinema.Nosql", "Cinema.Nosql\Cinema.Nosql.csproj", "{9593D9E3-3AE1-4F08-8659-B6C8BB69344B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cinema.Nosql1", "Cinema.Nosql\Cinema.Nosql1.csproj", "{9593D9E3-3AE1-4F08-8659-B6C8BB69344B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

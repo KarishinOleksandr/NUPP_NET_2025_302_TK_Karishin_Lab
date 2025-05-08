@@ -14,10 +14,19 @@ namespace Cinema.Nosql.Models
         [BsonRepresentation(BsonType.ObjectId)]
         public string Id { get; set; }
 
+        [BsonRepresentation(BsonType.String)]
         public Guid OriginalId { get; set; }
-        public string MovieId { get; set; } 
+
+        [BsonElement("movieId")]
+        public string MovieId { get; set; }
+
+        [BsonElement("showTime")]
         public DateTime ShowTime { get; set; }
+
+        [BsonElement("price")]
         public double Price { get; set; }
+
+        [BsonElement("customerId")]
         public string CustomerId { get; set; }
     }
 }
