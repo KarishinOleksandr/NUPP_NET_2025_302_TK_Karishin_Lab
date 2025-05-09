@@ -22,7 +22,7 @@ namespace Cinema.ConsoleApp
 
         static async Task Main(string[] args)
         {
-            System.Console.OutputEncoding = System.Text.Encoding.UTF8;
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
 
             var services = new ServiceCollection();
 
@@ -30,7 +30,6 @@ namespace Cinema.ConsoleApp
                 options.UseSqlite("Data Source=cinema.db"));
 
             BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
-
             var mongoSettings = new MongoDbSettings
             {
                 ConnectionString = "mongodb://localhost:27017",
@@ -45,26 +44,25 @@ namespace Cinema.ConsoleApp
             services.AddScoped<ICrudServiceAsync<Ticket>, EfCrudService<Ticket>>();
             services.AddScoped<ICrudServiceAsync<Employee>, EfCrudService<Employee>>();
 
-            services.AddScoped<IMongoRepository<MongoMovie>>(provider =>
-                provider.GetRequiredService<MongoDbInitializer>().GetRepository<MongoMovie>("movies"));
-            services.AddScoped<IMongoRepository<MongoTicket>>(provider =>
-                provider.GetRequiredService<MongoDbInitializer>().GetRepository<MongoTicket>("tickets"));
-            services.AddScoped<IMongoRepository<MongoCustomer>>(provider =>
-                provider.GetRequiredService<MongoDbInitializer>().GetRepository<MongoCustomer>("customers"));
+            services.AddScoped<IMongoRepository<MongoMovie>>(p =>
+                p.GetRequiredService<MongoDbInitializer>().GetRepository<MongoMovie>("movies"));
+            services.AddScoped<IMongoRepository<MongoTicket>>(p =>
+                p.GetRequiredService<MongoDbInitializer>().GetRepository<MongoTicket>("tickets"));
+            services.AddScoped<IMongoRepository<MongoCustomer>>(p =>
+                p.GetRequiredService<MongoDbInitializer>().GetRepository<MongoCustomer>("customers"));
             services.AddScoped<MongoCinemaService>();
 
             var serviceProvider = services.BuildServiceProvider();
-
             using var scope = serviceProvider.CreateScope();
             var provider = scope.ServiceProvider;
+
+            var context = provider.GetRequiredService<CinemaContext>();
+            await context.Database.MigrateAsync();
 
             var movieService = provider.GetRequiredService<ICrudServiceAsync<Movie>>();
             var customerService = provider.GetRequiredService<ICrudServiceAsync<Customer>>();
             var ticketService = provider.GetRequiredService<ICrudServiceAsync<Ticket>>();
-            var context = provider.GetRequiredService<CinemaContext>();
             var mongoService = provider.GetRequiredService<MongoCinemaService>();
-
-            await context.Database.MigrateAsync();
 
             var customer = new Customer
             {
@@ -72,7 +70,6 @@ namespace Cinema.ConsoleApp
                 Age = 28,
                 FavoriteGenre = "Драма"
             };
-
             await customerService.CreateAsync(customer);
 
             var mongoCustomer = new MongoCustomer
@@ -94,40 +91,49 @@ namespace Cinema.ConsoleApp
                 new() { Title = "Пастка", Genre = "Трилер", Year = 2017, Rating = 5.3 }
             };
 
+            var existingSqlMovies = await movieService.ReadAllAsync();
+            var existingMongoMovies = await mongoService.GetAllMoviesAsync();
+
+            var existingSqlSet = existingSqlMovies
+                .Select(m => (m.Title, m.Year))
+                .ToHashSet();
+
             foreach (var movie in initialMovies)
             {
-                await movieService.CreateAsync(movie);
-                var mongoMovie = new MongoMovie
+                Movie sqlMovie;
+                if (!existingSqlSet.Contains((movie.Title, movie.Year)))
                 {
-                    OriginalId = movie.Id,
-                    Title = movie.Title,
-                    Genre = movie.Genre,
-                    Year = movie.Year,
-                    Rating = movie.Rating
-                };
-                await mongoService.AddMovieAsync(mongoMovie);
-            }
+                    await movieService.CreateAsync(movie);
+                    sqlMovie = movie;
+                }
+                else
+                {
+                    sqlMovie = existingSqlMovies.First(m => m.Title == movie.Title && m.Year == movie.Year);
+                }
 
-            var sqlMovies = await movieService.ReadAllAsync();
-            var mongoMovies = await mongoService.GetAllMoviesAsync();
+                var mongoMovie = existingMongoMovies
+                    .FirstOrDefault(m => m.OriginalId == sqlMovie.Id);
 
-            foreach (var movie in sqlMovies)
-            {
-                var mongoMovie = mongoMovies.FirstOrDefault(m => m.OriginalId == movie.Id);
                 if (mongoMovie == null)
                 {
-                    Console.WriteLine($"Попередження: Фільм {movie.Title} не знайдено в MongoDB");
-                    continue;
+                    mongoMovie = new MongoMovie
+                    {
+                        OriginalId = sqlMovie.Id,
+                        Title = sqlMovie.Title,
+                        Genre = sqlMovie.Genre,
+                        Year = sqlMovie.Year,
+                        Rating = sqlMovie.Rating
+                    };
+                    await mongoService.AddMovieAsync(mongoMovie);
                 }
 
                 var ticket = new Ticket
                 {
-                    MovieId = movie.Id,
+                    MovieId = sqlMovie.Id,
                     ShowTime = DateTime.Now.AddHours(2),
                     Price = 100 + new Random().Next(10, 50),
                     CustomerId = customer.Id
                 };
-
                 await ticketService.CreateAsync(ticket);
 
                 var mongoTicket = new MongoTicket
@@ -140,10 +146,17 @@ namespace Cinema.ConsoleApp
                 };
                 await mongoService.AddTicketAsync(mongoTicket);
                 await mongoService.AddTicketToCustomerAsync(mongoCustomer.Id, mongoTicket.Id);
+
+                OnTicketAdded?.Invoke(ticket);
             }
 
             Console.WriteLine("\nСписок фільмів:");
-            foreach (var movie in await movieService.ReadAllAsync())
+            var distinctMovies = (await movieService.ReadAllAsync())
+                .GroupBy(m => new { m.Title, m.Year })
+                .Select(g => g.First())
+                .ToList();
+
+            foreach (var movie in distinctMovies)
             {
                 Console.WriteLine($"{movie.Title} ({movie.Year}) - {movie.Genre}, Рейтинг: {movie.Rating}/10");
             }
