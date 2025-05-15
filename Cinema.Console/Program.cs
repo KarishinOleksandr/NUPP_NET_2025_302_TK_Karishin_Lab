@@ -1,82 +1,177 @@
-﻿using Cinema.Common;
-using System;
-using System.Collections.Generic;
+﻿using Cinema.Infrastructure;
+using Cinema.Infrastructure.Models;
+using Cinema.Infrastructure.Services;
+using Cinema.Nosql;
+using Cinema.Nosql.Models;
+using Cinema.Nosql.Repositories;
+using Cinema.Nosql.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using MongoDB.Bson.Serialization.Serializers;
+using MongoDB.Bson.Serialization;
+using MongoDB.Bson;
+using MongoDB.Driver;
 
-namespace Cinema.Console
+namespace Cinema.ConsoleApp
 {
-    internal class Program
+    public class Program
     {
         public delegate void TicketAddedHandler(Ticket ticket);
         public static event TicketAddedHandler? OnTicketAdded;
-        static void Main(string[] args)
+
+        static async Task Main(string[] args)
         {
-            System.Console.OutputEncoding = System.Text.Encoding.UTF8;
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
 
-            var movieService = new CrudService<Movie>();
+            var services = new ServiceCollection();
 
-            movieService.Create(new Movie("Зелена миля", "Детектив", 1999, 8.6));
-            movieService.Create(new Movie("1917", "Драма", 2019, 8.2));
-            movieService.Create(new Movie("На Західному фронті без змін", "Драма", 2022, 7.8));
-            movieService.Create(new Movie("Зелена книга", "Комедія", 2018, 8.2));
-            movieService.Create(new Movie("Ножі наголо", "Детектив", 2019, 7.9));
-            movieService.Create(new Movie("Пастка", "Трилери", 2017, 5.3));
+            services.AddDbContext<CinemaContext>(options =>
+                options.UseSqlite("Data Source=cinema.db"));
 
-            string filePath = "movies.json";
-
-            movieService.Save(filePath);
-            System.Console.WriteLine($"\nДані збережено у файл: {filePath}");
-
-            System.Console.WriteLine("\nПісля очищення:");
-            var emptyService = new CrudService<Movie>();
-            foreach (var m in emptyService.ReadAll())
+            BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
+            var mongoSettings = new MongoDbSettings
             {
-                System.Console.WriteLine(m); 
-            }
+                ConnectionString = "mongodb://localhost:27017",
+                DatabaseName = "CinemaDB"
+            };
+            services.AddSingleton(Options.Create(mongoSettings));
+            services.AddSingleton<MongoDbInitializer>();
 
-            emptyService.Load(filePath);
-            System.Console.WriteLine("\nПісля завантаження з файлу:");
-            foreach (var m in emptyService.ReadAll())
+            services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+            services.AddScoped<ICrudServiceAsync<Movie>, EfCrudService<Movie>>();
+            services.AddScoped<ICrudServiceAsync<Customer>, EfCrudService<Customer>>();
+            services.AddScoped<ICrudServiceAsync<Ticket>, EfCrudService<Ticket>>();
+            services.AddScoped<ICrudServiceAsync<Employee>, EfCrudService<Employee>>();
+
+            services.AddScoped<IMongoRepository<MongoMovie>>(p =>
+                p.GetRequiredService<MongoDbInitializer>().GetRepository<MongoMovie>("movies"));
+            services.AddScoped<IMongoRepository<MongoTicket>>(p =>
+                p.GetRequiredService<MongoDbInitializer>().GetRepository<MongoTicket>("tickets"));
+            services.AddScoped<IMongoRepository<MongoCustomer>>(p =>
+                p.GetRequiredService<MongoDbInitializer>().GetRepository<MongoCustomer>("customers"));
+            services.AddScoped<MongoCinemaService>();
+
+            var serviceProvider = services.BuildServiceProvider();
+            using var scope = serviceProvider.CreateScope();
+            var provider = scope.ServiceProvider;
+
+            var context = provider.GetRequiredService<CinemaContext>();
+            await context.Database.MigrateAsync();
+
+            var movieService = provider.GetRequiredService<ICrudServiceAsync<Movie>>();
+            var customerService = provider.GetRequiredService<ICrudServiceAsync<Customer>>();
+            var ticketService = provider.GetRequiredService<ICrudServiceAsync<Ticket>>();
+            var mongoService = provider.GetRequiredService<MongoCinemaService>();
+
+            var customer = new Customer
             {
-                System.Console.WriteLine(m);
-            }
+                Name = "Олександр Карішін",
+                Age = 28,
+                FavoriteGenre = "Драма"
+            };
+            await customerService.CreateAsync(customer);
 
-
-            System.Console.WriteLine("Список фільмів\n");
-
-            foreach (var movie in movieService.ReadAll())
+            var mongoCustomer = new MongoCustomer
             {
-                System.Console.WriteLine(movie);
-            }
+                OriginalId = customer.Id,
+                Name = customer.Name,
+                Age = customer.Age,
+                FavoriteGenre = customer.FavoriteGenre
+            };
+            await mongoService.AddCustomerAsync(mongoCustomer);
 
-            List<Ticket> tickets = new List<Ticket>();
-
-            OnTicketAdded += ticket =>
+            var initialMovies = new List<Movie>
             {
-                System.Console.WriteLine($"\nДодано новий квиток: {ticket}");
+                new() { Title = "Зелена миля", Genre = "Детектив", Year = 1999, Rating = 8.6 },
+                new() { Title = "1917", Genre = "Драма", Year = 2019, Rating = 8.2 },
+                new() { Title = "На Західному фронті без змін", Genre = "Драма", Year = 2022, Rating = 7.8 },
+                new() { Title = "Зелена книга", Genre = "Комедія", Year = 2018, Rating = 8.2 },
+                new() { Title = "Ножі наголо", Genre = "Детектив", Year = 2019, Rating = 7.9 },
+                new() { Title = "Пастка", Genre = "Трилер", Year = 2017, Rating = 5.3 }
             };
 
-            AddTicket(tickets, new Ticket("Зелена миля", DateTime.Now.AddHours(2), 120));
-            AddTicket(tickets, new Ticket("1917", DateTime.Now.AddHours(3), 100));
-            AddTicket(tickets, new Ticket("На Західному фронті без змін", DateTime.Now.AddHours(4), 110));
-            AddTicket(tickets, new Ticket("Зелена книга", DateTime.Now.AddHours(4), 110));
-            AddTicket(tickets, new Ticket("Ножі наголо", DateTime.Now.AddHours(4), 110));
-            AddTicket(tickets, new Ticket("Пастка", DateTime.Now.AddHours(4), 110));
+            var existingSqlMovies = await movieService.ReadAllAsync();
+            var existingMongoMovies = await mongoService.GetAllMoviesAsync();
 
-            System.Console.WriteLine("\nСписок квитків:\n");
-            foreach (var ticket in tickets)
+            var existingSqlSet = existingSqlMovies
+                .Select(m => (m.Title, m.Year))
+                .ToHashSet();
+
+            foreach (var movie in initialMovies)
             {
-                System.Console.WriteLine(ticket);
+                Movie sqlMovie;
+                if (!existingSqlSet.Contains((movie.Title, movie.Year)))
+                {
+                    await movieService.CreateAsync(movie);
+                    sqlMovie = movie;
+                }
+                else
+                {
+                    sqlMovie = existingSqlMovies.First(m => m.Title == movie.Title && m.Year == movie.Year);
+                }
+
+                var mongoMovie = existingMongoMovies
+                    .FirstOrDefault(m => m.OriginalId == sqlMovie.Id);
+
+                if (mongoMovie == null)
+                {
+                    mongoMovie = new MongoMovie
+                    {
+                        OriginalId = sqlMovie.Id,
+                        Title = sqlMovie.Title,
+                        Genre = sqlMovie.Genre,
+                        Year = sqlMovie.Year,
+                        Rating = sqlMovie.Rating
+                    };
+                    await mongoService.AddMovieAsync(mongoMovie);
+                }
+
+                var ticket = new Ticket
+                {
+                    MovieId = sqlMovie.Id,
+                    ShowTime = DateTime.Now.AddHours(2),
+                    Price = 100 + new Random().Next(10, 50),
+                    CustomerId = customer.Id
+                };
+                await ticketService.CreateAsync(ticket);
+
+                var mongoTicket = new MongoTicket
+                {
+                    OriginalId = ticket.Id,
+                    MovieId = mongoMovie.Id,
+                    ShowTime = ticket.ShowTime,
+                    Price = ticket.Price,
+                    CustomerId = mongoCustomer.Id
+                };
+                await mongoService.AddTicketAsync(mongoTicket);
+                await mongoService.AddTicketToCustomerAsync(mongoCustomer.Id, mongoTicket.Id);
+
+                OnTicketAdded?.Invoke(ticket);
             }
 
-            System.Console.WriteLine($"\nЗагальна сума продажів: {tickets.CalculateTotalPrice()} грн");
+            Console.WriteLine("\nСписок фільмів:");
+            var distinctMovies = (await movieService.ReadAllAsync())
+                .GroupBy(m => new { m.Title, m.Year })
+                .Select(g => g.First())
+                .ToList();
 
-            System.Console.ReadLine();
+            foreach (var movie in distinctMovies)
+            {
+                Console.WriteLine($"{movie.Title} ({movie.Year}) - {movie.Genre}, Рейтинг: {movie.Rating}/10");
+            }
+
+            Console.WriteLine("\nСписок квитків:");
+            var allTickets = await context.Tickets.Include(t => t.Movie).ToListAsync();
+            foreach (var ticket in allTickets)
+            {
+                Console.WriteLine($"{ticket.Movie.Title} | {ticket.ShowTime} | {ticket.Price} грн");
+            }
+
+            double total = allTickets.Sum(t => t.Price);
+            Console.WriteLine($"\nЗагальна сума продажів: {total} грн");
+
+            Console.ReadLine();
         }
-            public static void AddTicket(List<Ticket> tickets, Ticket newTicket)
-            {
-            tickets.Add(newTicket);
-            OnTicketAdded?.Invoke(newTicket);
-            }
     }
-
 }
