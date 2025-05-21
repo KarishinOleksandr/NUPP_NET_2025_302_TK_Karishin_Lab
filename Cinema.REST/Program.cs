@@ -8,7 +8,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
                       ?? "Data Source=cinema.db";
 
 builder.Services.AddDbContext<CinemaContext>(options =>
-    options.UseSqlite(connectionString));
+    options.UseSqlite("Data Source=cinema.db"));
 
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 builder.Services.AddScoped(typeof(ICrudServiceAsync<>), typeof(EfCrudService<>));
@@ -30,6 +30,13 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<CinemaContext>();
+    context.Database.Migrate();
+}
+
 
 app.UseHttpsRedirection();
 app.UseAuthorization();
