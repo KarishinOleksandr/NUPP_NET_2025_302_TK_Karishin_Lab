@@ -1,14 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Cinema.Infrastructure.Models;
 
 namespace Cinema.Infrastructure
 {
-    public class CinemaContext : DbContext
+    public class CinemaContext : IdentityDbContext<ApplicationUser>
     {
         public CinemaContext(DbContextOptions<CinemaContext> options) : base(options) { }
 
@@ -45,12 +41,14 @@ namespace Cinema.Infrastructure
             modelBuilder.Entity<EmployeeTicket>()
                 .HasOne(et => et.Employee)
                 .WithMany(e => e.EmployeeTickets)
-                .HasForeignKey(et => et.EmployeeId);
+                .HasForeignKey(et => et.EmployeeId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<EmployeeTicket>()
                 .HasOne(et => et.Ticket)
                 .WithMany(t => t.EmployeeTickets)
-                .HasForeignKey(et => et.TicketId);
+                .HasForeignKey(et => et.TicketId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }
