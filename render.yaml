@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: cinema-api
+    runtime: dotnet
+    repo: https://github.com/KarishinOleksandr/NUPP_NET_2025_302_TK_Karishin_Lab.git
+    branch: laba5
+    buildCommand: dotnet build
+    startCommand: dotnet Cinema.REST.dll
+    buildFilter: ^Cinema\.REST/
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Development
