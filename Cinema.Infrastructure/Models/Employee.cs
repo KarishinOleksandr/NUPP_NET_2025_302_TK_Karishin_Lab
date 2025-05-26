@@ -1,15 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Cinema.Infrastructure.Models;
 
-namespace Cinema.Infrastructure.Models
+public class Employee
 {
-    public class Employee : Person
-    {
-        public string Position { get; set; } = string.Empty;
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Position { get; set; } = string.Empty;
+    public DateTime HireDate { get; set; }
 
-        public ICollection<EmployeeTicket> EmployeeTickets { get; set; } = new List<EmployeeTicket>();
-    }
+    public ICollection<EmployeeTicket> EmployeeTickets { get; set; } = new List<EmployeeTicket>();
 }
