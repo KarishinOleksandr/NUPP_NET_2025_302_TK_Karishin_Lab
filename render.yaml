@@ -6,7 +6,6 @@ services:
     branch: main
     buildCommand: dotnet publish Cinema.REST/Cinema.REST.csproj -c Release -o out
     startCommand: dotnet Cinema.REST.dll
-    publishPath: out
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Development
