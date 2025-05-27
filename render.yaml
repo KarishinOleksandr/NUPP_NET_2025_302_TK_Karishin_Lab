@@ -3,8 +3,3 @@ services:
     name: cinema-api
     repo: https://github.com/KarishinOleksandr/NUPP_NET_2025_302_TK_Karishin_Lab
     branch: main
-    buildCommand: dotnet publish Cinema.REST/Cinema.REST.csproj -c Release -o out
-    startCommand: dotnet Cinema.REST.dll
-    envVars:
-      - key: ASPNETCORE_ENVIRONMENT
-        value: Development
